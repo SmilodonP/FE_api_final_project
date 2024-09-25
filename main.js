@@ -36,17 +36,39 @@ submitMerchantButton.addEventListener('click', (event) => {
 //Global variables
 let merchants;
 let items;
+let coupons;
 
 //Page load data fetching
-Promise.all([fetchData('merchants'), fetchData('items')])
-.then(responses => {
-    merchants = responses[0].data
-    items = responses[1].data
-    displayMerchants(merchants)
+// Promise.all([fetchData('merchants'), fetchData('items'), fetchData('coupons')])
+// .then(responses => {
+//     merchants = responses[0].data
+//     items = responses[1].data
+//     coupons = responses[2].data
+//     displayMerchants(merchants)
+//   })
+//   .catch(err => {
+//     console.log('catch error: ', err)
+//   })
+Promise.all([
+    fetchData('merchants'), 
+    fetchData('items'), 
+    fetchData('merchants/${merchantId}/coupons')
+  ])
+  .then(responses => {
+      console.log("API Responses:", responses); // Log the entire responses array
+      merchants = responses[0]?.data; // Optional chaining to avoid errors
+      items = responses[1]?.data;
+      coupons = responses[2]?.data;
+
+      if (!merchants || !items || !coupons) {
+          throw new Error("One or more responses are missing data");
+      }
+
+      displayMerchants(merchants);
   })
   .catch(err => {
-    console.log('catch error: ', err)
-  })
+      console.log('catch error: ', err);
+  });
 
 // Merchant CRUD Functions
 function handleMerchantClicks(event) {
@@ -164,6 +186,14 @@ function showMerchantItemsView(id, items) {
   addNewButton.dataset.state = 'item'
   displayItems(items)
 }
+function showMerchantCouponsView(id, coupons) {
+  showingText.innerText = `All Coupons for Merchant #${id}`
+  show([couponsView])
+  hide([merchantsView, addNewButton, couponsView])
+  addRemoveActiveNav(couponsNavButton, merchantsNavButton)
+  addNewButton.dataset.state = 'coupon'
+  displayCoupons(coupons)
+}
 
 // Functions that add data to the DOM
 function displayItems(items) {
@@ -182,6 +212,23 @@ function displayItems(items) {
     `
   })
 }
+// function displayCoupons(coupons) {
+//   couponsView.innerHTML = ''
+//   let firstHundredCoupons = coupons.slice(0, 99)
+//   firstHundredCoupons.forEach(coupon => {
+//     let merchant = findMerchant(coupon.attributes.merchant_id).attributes.name
+//     couponsView.innerHTML += `
+//      <article class="coupon" id="coupon-${coupon.id}">
+//           <img src="" alt="">
+//           <h2>${coupon.attributes.name}</h2>
+//           <p>${coupon.attributes.dollars_off}</p>
+//           <p>$${coupon.attributes.percentage_off}</p>
+//           <p>$${coupon.attributes.status}</p>
+//           <p class="merchant-name-in-coupon">Merchant: ${merchant}</p>
+//         </article>
+//     `
+//   })
+// }
 
 function displayMerchants(merchants) {
     merchantsView.innerHTML = ''
@@ -233,23 +280,43 @@ function displayMerchantItems(event) {
 }
 
 function getMerchantCoupons(event) {
-  let merchantId = event.target.closest("article").id.split('-')[1]
-  console.log("Merchant ID:", merchantId)
+  let merchantId = event.target.closest("article").id.split('-')[1];
+  console.log("Merchant ID:", merchantId);
 
-  fetchData(`merchants/${merchantId}`)
-  .then(couponData => {
-    console.log("Coupon data from fetch:", couponData)
-    displayMerchantCoupons(couponData);
-  })
+  fetchData(`merchants/${merchantId}/coupons`)
+      .then(couponsData => {
+          console.log("Coupon data from fetch:", couponsData);
+          displayMerchantCoupons(couponsData.data, merchantId); // Pass merchantId
+      })
+      .catch(err => {
+          console.log("Error fetching coupons:", err);
+      });
 }
 
-function displayMerchantCoupons(coupons) {
-  show([couponsView])
-  hide([merchantsView, itemsView])
+// function displayMerchantCoupons(coupons, merchantId) {
+//   show([couponsView]);
+//   hide([merchantsView, itemsView]);
 
-  couponsView.innerHTML = `
-    <p>Coupon data will go here.</p>
-  `
+//   const filteredMerchantCoupons = coupons.filterByMerchant(merchantId);
+//   showMerchantCouponsView(merchantId, filteredMerchantCoupons);
+// }
+function displayMerchantCoupons(couponsData) {
+  const coupons = couponsData.data;
+
+  if (!Array.isArray(coupons) || coupons.length === 0) {
+      console.error("No coupons to display.");
+      return;
+  }
+
+  show([couponsView]);
+  hide([merchantsView, itemsView]);
+
+  const filteredMerchantCoupons = filterCouponsByMerchant(coupons, merchantId);
+  showMerchantCouponsView(merchantId, filteredMerchantCoupons);
+}
+
+function filterCouponsByMerchant(coupons, merchantId) {
+  return coupons.filter(coupon => coupon.attributes.merchant_id === merchantId);
 }
 
 //Helper Functions
